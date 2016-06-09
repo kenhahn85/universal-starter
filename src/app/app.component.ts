@@ -1,6 +1,21 @@
-import {Component, Directive, ElementRef, Renderer} from '@angular/core';
+import {Component, Directive, ElementRef, Injectable, Renderer} from '@angular/core';
 import {RouteConfig, ROUTER_DIRECTIVES} from '@angular/router-deprecated';
 import {Http} from '@angular/http';
+
+import { BaseService, HeroService, RuntimeErrorHandler } from './fake.service';
+
+// TEMPORARY
+declare interface Window { _seedData: {string: [string|number, any]}; }
+declare var window: Window;
+
+declare type Json = JsonObject | number | string | JsonArray;
+declare type JsonArray = IMaybeRecursiveArray<JsonObject | number | string>;
+interface IMaybeRecursiveArray<T> {
+  [i: number]: T | IMaybeRecursiveArray<T>;
+}
+interface JsonObject {
+  [paramKey: string]: Json
+}
 
 /////////////////////////
 // ** Example Directive
@@ -36,6 +51,30 @@ export class Home { }
 })
 export class About { }
 
+@Component({
+  template: `
+    <script>
+        window.seedData = JSON.parse('{{ seedData }}'); 
+    </script>
+  `
+})
+export class SeedDataInjector {
+  // if on NodeJS, populate this from all Services somehow. Define this mechanism in base service. Otherwise, ignore.
+  // TODO: place this in app component body
+  seedData () {
+
+  }
+}
+
+class ConsoleErrorHandler extends RuntimeErrorHandler {
+  assertionFailed(...msg: string[]) {
+    console.log('Assertion Failed:', ...msg);
+  }
+  onError(error: Error) {
+    console.log('Error:', error);
+  }
+}
+
 /////////////////////////
 // ** MAIN APP COMPONENT **
 @Component({
@@ -43,6 +82,11 @@ export class About { }
   directives: [
     ...ROUTER_DIRECTIVES,
     XLarge
+  ],
+  providers:[
+    HeroService,
+    // TODO: reconsider location of this class
+    {provide: RuntimeErrorHandler, useClass: ConsoleErrorHandler}
   ],
   styles: [`
     * { padding:0; margin:0; }
@@ -74,7 +118,18 @@ export class About { }
       <br><br>
 
       <strong>Async data call return value:</strong>
-      <pre>{{ data | json }}</pre>
+      <script>window._seedData = {};</script>
+      
+      <div *ngFor="let service of services">
+        <div *ngIf="service.dataKey">
+          <script>window._seedData['{{service.dataKey}}'] = JSON.parse('{{ service.dumpJson() }}');</script>
+          <script>console.log('set seed data for {{service.dataKey}}');</script>
+        </div>
+      </div>
+      
+      <div *ngFor="let hero of (heroService.observable | async).values()">
+        <h1>{{hero.id}}: {{hero.name}}</h1> 
+      </div>
 
       <strong>Router-outlet:</strong>
       <main>
@@ -93,16 +148,29 @@ export class About { }
   { path: '/**', redirectTo: ['Home'] }
 ])
 export class App {
-  title: string = 'ftw';
   data = {};
   server: string;
+  services: [BaseService<any, any>];
+  title: string = 'ftw';
 
-  constructor(public http: Http) { }
+  constructor(public heroService: HeroService, public http: Http) {
+    this.services = [
+      heroService
+    ];
+  }
 
   ngOnInit() {
     setTimeout(() => {
-      this.server = 'This was rendered from the server!';
-    }, 10);
+      if (typeof window === 'undefined') {
+        this.server = 'This was rendered from the server!';
+      } else {
+        this.server = 'This was rendered from the client!';
+      }
+    }, 2000);
+
+    if (typeof window !== 'undefined') {
+      this.data = window._seedData;
+    }
 
     this.http.get('/data.json')
       .subscribe(res => {

@@ -8,3 +8,6 @@ npm-debug.log
 /dist/
 
 .idea
+
+src/**/*.js
+src/**/*.js.map

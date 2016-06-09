@@ -2,10 +2,11 @@
   "compilerOptions": {
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "target": "es5",
+    "target": "es6",
     "module": "commonjs",
     "removeComments": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "strictNullChecks": true
   },
   "exclude": [
     "typings/main.d.ts",
